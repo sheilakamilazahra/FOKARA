@@ -206,23 +206,15 @@ def get_prediction_value(
 def normalize_prediction_result(
     result: dict
 ) -> dict:
-    """Memastikan hasil prediksi model memiliki format dictionary."""
+    """
+    Memastikan hasil prediksi model berupa dictionary.
+
+    Label boleh None apabila deteksi tidak valid.
+    """
 
     if not isinstance(result, dict):
         raise ValueError(
             "Hasil prediksi model harus berupa dictionary."
-        )
-
-    label = get_prediction_value(
-        result,
-        "predicted_label",
-        "label",
-        "prediction"
-    )
-
-    if label is None:
-        raise ValueError(
-            "Model tidak menghasilkan predicted_label."
         )
 
     return result
@@ -444,6 +436,9 @@ def build_observation(
     """
     Mengubah hasil prediksi model menjadi format
     yang sesuai dengan tabel cv_observations.
+
+    Hasil deteksi tidak valid tetap disimpan dengan
+    predicted_label = None dan is_valid = False.
     """
 
     result = normalize_prediction_result(result)
@@ -460,10 +455,11 @@ def build_observation(
         "confidence"
     )
 
-    is_valid = result.get("is_valid", True)
-
-    if is_valid is None:
-        is_valid = True
+    # Label kosong berarti deteksi tidak valid.
+    is_valid = (
+        bool(result.get("is_valid", True))
+        and predicted_label is not None
+    )
 
     metadata = {
         "probabilities": result.get("probabilities")
@@ -478,11 +474,15 @@ def build_observation(
         "indicator_type": indicator_type,
         "timestamp_seconds": round(timestamp_seconds, 3),
         "frame_index": frame_index,
-        "predicted_label": str(predicted_label),
+        "predicted_label": (
+            str(predicted_label)
+            if predicted_label is not None
+            else None
+        ),
         "confidence": json_safe(confidence),
         "model_name": model_name,
         "model_version": model_version,
-        "is_valid": bool(is_valid),
+        "is_valid": is_valid,
         "quality_flag": result.get("quality_flag"),
         "is_synthetic": False,
         "metadata": json_safe(metadata)
@@ -589,7 +589,11 @@ def process_video(
                 )
 
                 observations.append(observation)
-                indicator_success["head_motion"] += 1
+
+                if observation["is_valid"]:
+                    indicator_success["head_motion"] += 1
+                else:
+                    indicator_failed["head_motion"] += 1
 
             except Exception:
                 indicator_failed["head_motion"] += 1
@@ -618,7 +622,11 @@ def process_video(
                 )
 
                 observations.append(observation)
-                indicator_success["gaze"] += 1
+
+                if observation["is_valid"]:
+                    indicator_success["gaze"] += 1
+                else:
+                    indicator_failed["gaze"] += 1
 
             except Exception:
                 indicator_failed["gaze"] += 1
@@ -647,7 +655,11 @@ def process_video(
                 )
 
                 observations.append(observation)
-                indicator_success["expression"] += 1
+
+                if observation["is_valid"]:
+                    indicator_success["expression"] += 1
+                else:
+                    indicator_failed["expression"] += 1
 
             except Exception:
                 indicator_failed["expression"] += 1
