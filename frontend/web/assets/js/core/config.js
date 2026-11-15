@@ -1,7 +1,7 @@
 
 export const CONFIG = {
   mock: false, // false = menggunakan backend FastAPI
-  apiBase: "http://127.0.0.1:8000",
+  apiBase: "https://fokara-production.up.railway.app",
   minDeteksi: 0.6, // di bawah ini data visual ditandai "tidak memadai"
 };
 
