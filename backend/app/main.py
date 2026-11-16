@@ -9,6 +9,7 @@ from app.routes.history import router as history_router
 from app.routes.evaluation import router as evaluation_router
 from app.routes.sessions import router as sessions_router
 from app.routes.jobs import router as jobs_router
+from app.routes.analytics import router as analytics_router
 
 
 app = FastAPI(
@@ -42,7 +43,7 @@ app.include_router(history_router)
 app.include_router(evaluation_router)
 app.include_router(sessions_router)
 app.include_router(jobs_router)
-
+app.include_router(analytics_router)
 
 # ==========================================
 # ROOT ENDPOINT

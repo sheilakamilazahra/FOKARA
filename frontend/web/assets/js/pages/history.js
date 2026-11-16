@@ -13,6 +13,9 @@ let selectedRole = "all";
 let selectedVisualSessionId = "";
 let charts = {};
 
+let spearmanAnalytics = null;
+let clusterAnalytics = null;
+
 const COLORS = {
   teal: "#0d9f91",
   tealLight: "rgba(13, 159, 145, 0.12)",
@@ -120,11 +123,330 @@ async function loadHistory() {
           : [];
 
     renderHistory();
+    await loadAdvancedAnalytics();
 
   } catch (error) {
     console.error("[HISTORY] Error:", error);
     showMessage(error.message || "Terjadi kesalahan saat memuat riwayat.");
   }
+}
+
+// =====================================================
+// ADVANCED ANALYTICS API
+// =====================================================
+
+async function fetchAnalytics(endpoint) {
+  const authHeaders = await getAuthHeaders();
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      ...authHeaders
+    }
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      result.detail ||
+      result.message ||
+      `Gagal mengambil data dari ${endpoint}.`
+    );
+  }
+
+  if (result.success === false) {
+    throw new Error(
+      result.message ||
+      result.detail ||
+      `Analisis ${endpoint} gagal.`
+    );
+  }
+
+  return result;
+}
+
+async function loadAdvancedAnalytics() {
+  const results = await Promise.allSettled([
+    fetchAnalytics("/api/analytics/spearman"),
+    fetchAnalytics("/api/analytics/clusters")
+  ]);
+
+  if (results[0].status === "fulfilled") {
+    spearmanAnalytics = results[0].value;
+    console.log("[ANALYTICS] Spearman berhasil dimuat:", spearmanAnalytics);
+  } else {
+    spearmanAnalytics = null;
+    console.error("[ANALYTICS] Spearman gagal:", results[0].reason);
+  }
+
+  if (results[1].status === "fulfilled") {
+    clusterAnalytics = results[1].value;
+    console.log("[ANALYTICS] HDBSCAN berhasil dimuat:", clusterAnalytics);
+  } else {
+    clusterAnalytics = null;
+    console.error("[ANALYTICS] HDBSCAN gagal:", results[1].reason);
+  }
+
+  renderSpearmanAnalytics();
+  renderHdbscanAnalytics();
+}
+
+
+function renderSpearmanAnalytics() {
+  const meta = $("spearmanMeta");
+  const message = $("spearmanMessage");
+  const tableBody = $("spearmanTableBody");
+
+  if (!meta || !message || !tableBody) return;
+
+  if (!spearmanAnalytics) {
+    meta.textContent = "Data analitik Spearman tidak tersedia.";
+    message.hidden = false;
+    message.textContent =
+      "Terjadi kendala saat mengambil hasil korelasi dari server.";
+    tableBody.innerHTML = `
+      <tr><td colspan="5">Data tidak dapat dimuat.</td></tr>
+    `;
+    return;
+  }
+
+  const results = spearmanAnalytics.correlations || [];
+
+  meta.textContent =
+    `Total sesi: ${spearmanAnalytics.total_sessions ?? 0} | ` +
+    `Sesi dengan skor: ${spearmanAnalytics.scored_sessions ?? 0}`;
+
+  message.hidden = true;
+
+  const featureLabels = {
+    gaze_center_ratio: "Pandangan ke tengah",
+    gaze_down_ratio: "Pandangan ke bawah",
+    gaze_left_ratio: "Pandangan ke kiri",
+    gaze_right_ratio: "Pandangan ke kanan",
+    gaze_up_ratio: "Pandangan ke atas",
+
+    head_motion_atas_ratio: "Gerakan kepala ke atas",
+    head_motion_bawah_ratio: "Gerakan kepala ke bawah",
+    head_motion_depan_ratio: "Gerakan kepala ke depan",
+    head_motion_kanan_ratio: "Gerakan kepala ke kanan",
+    head_motion_kiri_ratio: "Gerakan kepala ke kiri",
+
+    expression_surprise_ratio: "Ekspresi terkejut",
+    expression_fear_ratio: "Ekspresi takut",
+    expression_disgust_ratio: "Ekspresi jijik",
+    expression_happy_ratio: "Ekspresi senang",
+    expression_sad_ratio: "Ekspresi sedih",
+    expression_angry_ratio: "Ekspresi marah",
+    expression_neutral_ratio: "Ekspresi netral"
+  };
+
+  const statusLabels = {
+    calculated: "Berhasil dihitung",
+    insufficient_data: "Data belum cukup",
+    constant_values: "Nilai tidak bervariasi"
+  };
+
+  if (!results.length) {
+    tableBody.innerHTML = `
+      <tr><td colspan="5">Belum ada hasil korelasi.</td></tr>
+    `;
+    return;
+  }
+
+  tableBody.innerHTML = results.map((item) => {
+    const rho = Number.isFinite(item.rho)
+      ? item.rho.toFixed(3)
+      : "—";
+
+    const pValue = Number.isFinite(item.p_value)
+      ? item.p_value.toFixed(4)
+      : "—";
+
+    const status =
+      statusLabels[item.status] || item.status || "Tidak diketahui";
+
+    return `
+      <tr>
+        <td>${escapeHTML(featureLabels[item.feature] || item.feature)}</td>
+        <td>${item.sample_size ?? 0}</td>
+        <td>${rho}</td>
+        <td>${pValue}</td>
+        <td>${escapeHTML(status)}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+
+function renderHdbscanAnalytics() {
+  const meta = $("clusterMeta");
+  const message = $("clusterMessage");
+  const summary = $("clusterSummary");
+
+  if (!meta || !message || !summary) return;
+
+  destroyChart("cluster");
+
+  if (!clusterAnalytics) {
+    meta.textContent = "Data analitik HDBSCAN tidak tersedia.";
+    message.hidden = false;
+    message.textContent =
+      "Terjadi kendala saat mengambil hasil clustering dari server.";
+
+    summary.innerHTML = "";
+    setChartEmpty("clusterChart", "clusterEmpty", true);
+    return;
+  }
+
+  const result = clusterAnalytics;
+  const data = Array.isArray(result.data) ? result.data : [];
+
+  meta.textContent =
+    `Total sesi: ${result.total_sessions ?? 0} | ` +
+    `Sesi dengan skor: ${result.scored_sessions ?? 0} | ` +
+    `Sesi lengkap: ${result.complete_sessions ?? 0}`;
+
+  if (result.status !== "completed") {
+    message.hidden = false;
+    message.textContent =
+      result.message || "Data belum mencukupi untuk clustering.";
+
+    summary.innerHTML = "";
+    setChartEmpty("clusterChart", "clusterEmpty", true);
+    $("clusterEmpty").textContent =
+      "Visualisasi akan tersedia setelah data mencukupi.";
+    return;
+  }
+
+  message.hidden = true;
+
+  const clusterGroups = new Map();
+
+  data.forEach((item) => {
+    const clusterId = Number(item.cluster);
+    const key = clusterId === -1 ? "noise" : String(clusterId);
+
+    if (!clusterGroups.has(key)) {
+      clusterGroups.set(key, []);
+    }
+
+    clusterGroups.get(key).push(item);
+  });
+
+  const palette = [
+    "#0d9f91",
+    "#8875d6",
+    "#e49b3d",
+    "#5c8fd6",
+    "#d77da5",
+    "#64748b"
+  ];
+
+  const datasets = [...clusterGroups.entries()].map(
+    ([key, items], index) => {
+      const isNoise = key === "noise";
+
+      return {
+        label: isNoise ? "Noise" : `Cluster ${key}`,
+        data: items.map((item, pointIndex) => ({
+          x: data.indexOf(item) + 1,
+          y: Number(item.rubric_score),
+          sessionId: item.session_id,
+          startedAt: item.started_at
+        })),
+        backgroundColor: isNoise
+          ? "#aab5c2"
+          : palette[Number(key) % palette.length],
+        borderColor: isNoise
+          ? "#8794a3"
+          : palette[Number(key) % palette.length],
+        pointRadius: 6,
+        pointHoverRadius: 8
+      };
+    }
+  );
+
+  summary.innerHTML = `
+    <div class="analytics-cluster-stat">
+      <strong>${result.total_clusters ?? 0}</strong>
+      <span>Cluster terbentuk</span>
+    </div>
+    <div class="analytics-cluster-stat">
+      <strong>${result.noise_count ?? 0}</strong>
+      <span>Sesi noise</span>
+    </div>
+    <div class="analytics-cluster-stat">
+      <strong>${result.complete_sessions ?? 0}</strong>
+      <span>Sesi dianalisis</span>
+    </div>
+  `;
+
+  setChartEmpty("clusterChart", "clusterEmpty", false);
+
+  const canvas = $("clusterChart");
+
+  if (!canvas || typeof Chart === "undefined") {
+    console.error("[ANALYTICS] Chart.js atau canvas tidak tersedia.");
+    setChartEmpty("clusterChart", "clusterEmpty", true);
+    return;
+  }
+
+  charts.cluster = new Chart(canvas, {
+    type: "scatter",
+    data: {
+      datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+
+      plugins: {
+        legend: {
+          display: true,
+          position: "bottom"
+        },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const point = context.raw;
+
+              return [
+                context.dataset.label,
+                `Sesi ke-${point.x}`,
+                `Skor performa: ${point.y}`,
+                `ID sesi: ${point.sessionId}`
+              ];
+            }
+          }
+        }
+      },
+
+      scales: {
+        x: {
+          type: "linear",
+          title: {
+            display: true,
+            text: "Urutan sesi"
+          },
+          ticks: {
+            precision: 0
+          }
+        },
+        y: {
+          title: {
+            display: true,
+            text: "Skor performa"
+          }
+        }
+      }
+    }
+  });
+
+  $("clusterNote").textContent =
+    result.interpretation_note ||
+    "Label -1 menunjukkan observasi noise, bukan performa buruk.";
 }
 
 // =====================================================
@@ -466,6 +788,7 @@ function renderHistory() {
   renderPerformanceCharts(sortedSessions);
   renderVisualSessionSelector(sortedSessions);
   renderTable(sortedSessions);
+  renderSpearmanAnalytics();
 }
 
 // =====================================================

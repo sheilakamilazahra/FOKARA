@@ -266,10 +266,111 @@
           atau kompetensi pengguna. Hasilnya perlu dipahami berdasarkan
           konteks rekaman.
         </p>
+
       </aside>
+
+      <!-- ADVANCED ANALYTICS -->
+      <section class="history-section advanced-analytics" id="advancedAnalytics">
+
+        <div class="history-section-heading">
+          <div>
+            <p class="history-eyebrow">ANALISIS LANJUTAN</p>
+            <h2>Analitik performa dan perilaku visual</h2>
+            <p class="muted">
+              Analisis hubungan indikator visual dengan performa wawancara
+              serta pengelompokan sesi berdasarkan karakteristiknya.
+            </p>
+          </div>
+        </div>
+
+        <div class="history-information">
+          <span class="history-information-icon">ⓘ</span>
+          <p>
+            Analisis ini dihitung berdasarkan seluruh sesi peserta dan
+            tidak mengikuti filter posisi pada bagian riwayat.
+            Hasil korelasi menunjukkan hubungan statistik, bukan sebab-akibat.
+            Label noise pada HDBSCAN bukan berarti performa pengguna buruk.
+          </p>
+        </div>
+
+        <!-- SPEARMAN -->
+        <article class="history-chart-card advanced-analytics-card">
+          <div class="history-chart-heading">
+            <div>
+              <span class="history-chart-kicker">SPEARMAN RANK CORRELATION</span>
+              <h3>Hubungan indikator visual dengan performa</h3>
+              <p class="muted">
+                Mengukur arah dan kekuatan hubungan monotonik antara
+                skor performa dan indikator visual.
+              </p>
+            </div>
+          </div>
+
+          <div class="analytics-meta" id="spearmanMeta">
+            Menunggu data analitik...
+          </div>
+
+          <div class="analytics-message" id="spearmanMessage" hidden></div>
+
+          <div class="tw">
+            <table class="tbl analytics-table" id="spearmanTable">
+              <thead>
+                <tr>
+                  <th>Indikator</th>
+                  <th>Jumlah Sampel</th>
+                  <th>Koefisien (ρ)</th>
+                  <th>p-value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="spearmanTableBody">
+                <tr>
+                  <td colspan="5">Memuat hasil analisis...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- HDBSCAN -->
+        <article class="history-chart-card advanced-analytics-card">
+          <div class="history-chart-heading">
+            <div>
+              <span class="history-chart-kicker">HDBSCAN CLUSTERING</span>
+              <h3>Pengelompokan karakteristik sesi</h3>
+              <p class="muted">
+                Mengelompokkan sesi berdasarkan kemiripan skor performa
+                dan indikator visual yang tersedia.
+              </p>
+            </div>
+          </div>
+
+          <div class="analytics-meta" id="clusterMeta">
+            Menunggu data analitik...
+          </div>
+
+          <div class="analytics-message" id="clusterMessage" hidden></div>
+
+          <div class="analytics-cluster-summary" id="clusterSummary"></div>
+
+          <div class="history-chart-canvas analytics-cluster-chart">
+            <canvas id="clusterChart"></canvas>
+            <p class="chart-empty" id="clusterEmpty" hidden>
+              Data clustering belum mencukupi.
+            </p>
+          </div>
+
+          <p class="muted analytics-note" id="clusterNote">
+            Label -1 menunjukkan sesi yang dikategorikan sebagai noise
+            oleh algoritma, bukan performa rendah.
+          </p>
+        </article>
+
+      </section>
 
       <!-- SESSION TABLE -->
       <section class="history-table-card">
+
 
         <div class="history-table-heading">
           <div>

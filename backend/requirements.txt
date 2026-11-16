@@ -12,6 +12,10 @@ opencv-python-headless==4.11.0.86
 numpy==2.2.6
 timm==1.0.30
 
+# Advanced Analytics
+scipy==1.15.3
+scikit-learn==1.7.2
+
 # PyTorch CPU untuk server Linux
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.14.1
